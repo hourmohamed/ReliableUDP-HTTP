@@ -28,6 +28,9 @@ class ReliableUDP:
     
 
     def make_packet(self, flags, seq, payload=b''):
+        # Packet structure:
+        # 1 byte checksum | 1 byte flags | 4 bytes sequence | payload
+
         header = struct.pack('!B I', flags, seq)
         body = header + payload
         cs = self.checksum(body)
@@ -37,15 +40,15 @@ class ReliableUDP:
 
     
     def parse_packet(self, packet):
+        
+        if len(packet) < 6:  # 1 checksum + 1 flag + 4 seq
+            return None
+        
         # cs_recv-> checksum
         # rest->payload and header
         cs_recv, rest = packet[:1], packet[1:]
         if self.checksum(rest) != cs_recv:
             return None
-
-
-        if self.checksum(rest) != cs_recv:
-            return None  # Corrupt
         
         flags, seq = struct.unpack('!B I', rest[:5])
         payload = rest[5:]
