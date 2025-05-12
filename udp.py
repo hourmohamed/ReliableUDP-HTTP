@@ -5,7 +5,7 @@ import random
 import struct
 import hashlib
 
-# Flags
+
 SYN = 0x01
 ACK = 0x02
 FIN = 0x04
@@ -26,10 +26,24 @@ class ReliableUDP:
         return hashlib.md5(msg).digest
     
     def make_packet(self, flags, seq, payload=b''):
+        # 2 bytes header: 1 byte for flag, 1 byte for seqNum
         header = struct.pack('!B I', flags, seq)
         body = header + payload
         cs = self.checksum(body)
         return cs + body
+
+    def parse_packet(self, packet):
+        # cs_recv-> checksum
+        # rest->payload and header
+        cs_recv, rest = packet[:16], packet[16:]
+
+        if self.checksum(rest) != cs_recv:
+            return None  # Corrupt
+        
+        flags, seq = struct.unpack('!B I', rest[:5])
+        payload = rest[5:]
+        return flags, seq, payload
+    
     
     
     
