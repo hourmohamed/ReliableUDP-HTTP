@@ -12,16 +12,16 @@ FIN = 0x04
 
 
 class ReliableUDP:
-    def __init__(self, loss_prob=0.1, corrupt_prob=0.1, timeout=2.0):
+    def __init__(self, timeout=2.0):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.seq = 0
-        self.loss_prob = loss_prob
-        self.corrupt_prob = corrupt_prob
         self.timeout = timeout
 
     def bind(self,address):
         self.server.bind(address)
     
+
+    # error detection
     def checksum(self, msg):
         return hashlib.md5(msg).digest
     
@@ -32,6 +32,8 @@ class ReliableUDP:
         cs = self.checksum(body)
         return cs + body
 
+
+    
     def parse_packet(self, packet):
         # cs_recv-> checksum
         # rest->payload and header
