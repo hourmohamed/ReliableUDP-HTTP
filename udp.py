@@ -22,22 +22,27 @@ class ReliableUDP:
     
 
     # error detection
-    def checksum(self, msg):
-        return hashlib.md5(msg).digest
+    def checksum(self, data):
+        cs = sum(data) % 256
+        return struct.pack('!B', cs)  # 1 byte
     
+
     def make_packet(self, flags, seq, payload=b''):
-        # 2 bytes header: 1 byte for flag, 1 byte for seqNum
         header = struct.pack('!B I', flags, seq)
         body = header + payload
         cs = self.checksum(body)
         return cs + body
 
 
+
     
     def parse_packet(self, packet):
         # cs_recv-> checksum
         # rest->payload and header
-        cs_recv, rest = packet[:16], packet[16:]
+        cs_recv, rest = packet[:1], packet[1:]
+        if self.checksum(rest) != cs_recv:
+            return None
+
 
         if self.checksum(rest) != cs_recv:
             return None  # Corrupt
