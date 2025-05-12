@@ -25,5 +25,13 @@ class ReliableUDP:
     def checksum(self, msg):
         return hashlib.md5(msg).digest
     
+    def make_packet(self, flags, seq, payload=b''):
+        header = struct.pack('!B I', flags, seq)
+        body = header + payload
+        cs = self.checksum(body)
+        return cs + body
+    
+    
+    
     
         
