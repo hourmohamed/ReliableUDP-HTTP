@@ -15,9 +15,10 @@ class ReliableUDP:
     def __init__(self, timeout=2.0):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.seq = 0
+        self.ack = 0
         self.ack_num = 0
         self.timeout_val = timeout
-        self.server.settimeout(timeout)
+        self.server.settimeout(None)
 
     def bind(self,address):
         self.server.bind(address)
