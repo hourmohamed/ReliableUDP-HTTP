@@ -23,7 +23,7 @@ class ReliableUDP:
         self.loss_rate = loss_rate
         self.expected_seq = 0
         self.buffer = {}  # Buffer for out-of-order packets
-        self.server.settimeout(None)
+        self.server.settimeout(timeout)
 
     def bind(self, address):
         self.server.bind(address)
