@@ -15,6 +15,8 @@ class TCP:
         self.is_server = is_server
         self.seq = random.randint(1000, 5000)
         self.peer_addr = None
+        self.ack_num = 0
+        self.corruption_rate = 0.0
 
         if is_server:
             self.socket.bind(self.addr)
@@ -22,6 +24,10 @@ class TCP:
         else:
             self.socket.bind(('0.0.0.0', 0))  # Client binds to ephemeral port
             print(f"[Client] ready to connect to {self.addr}")
+
+    def set_corruption_rate(self, rate):
+        """Set probability of simulated packet corruption (0.0 to 1.0)"""
+        self.corruption_rate = rate
 
     def hand_shake(self):
         return self._server_handshake() if self.is_server else self._client_handshake()
@@ -69,48 +75,123 @@ class TCP:
         except socket.timeout:
             print("[Client] Timeout waiting for SYN-ACK.")
         return False
-    def send(self, data: bytes):
+    
+
+    # def send(self, data: bytes):
+    #     packet = Packet(
+    #         seq_num=self.seq,
+            
+    #         ack_num=0,
+    #         flags={"SYN": False, "ACK": False, "FIN": False},
+    #         payload=data
+    #     )
+
+    #     ack_received = False
+    #     while not ack_received:
+    #         print(f"[Send] Sending packet seq={packet.seq_num}")
+    #         self.socket.sendto(packet.to_json().encode(), self.peer_addr)
+
+    #         try:
+    #             self.socket.settimeout(1)
+    #             ack_data, _ = self.socket.recvfrom(1024)
+    #             ack_pkt = Packet.from_json(ack_data.decode())
+    #             if ack_pkt.flags.get("ACK") and ack_pkt.ack_num == packet.seq_num + 1:
+    #                 print(f"[Send] ACK received for seq={packet.seq_num}")
+    #                 self.seq += 1
+    #                 ack_received = True
+    #         except socket.timeout:
+    #             print("[Send] Timeout waiting for ACK, retransmitting..")
+
+
+
+
+    def send(self, data, max_retries=3):
+        """Send data with checksum and retransmission on failure"""
         packet = Packet(
             seq_num=self.seq,
-            ack_num=0,
-            flags={"SYN": False, "ACK": False, "FIN": False},
+            ack_num=self.ack_num,
+            flags={"DATA": True},
             payload=data
         )
+        
+        # Randomly simulate corruption based on corruption_rate
+        if random.random() < self.corruption_rate:
+            packet.simulate_corruption()
 
-        ack_received = False
-        while not ack_received:
-            print(f"[Send] Sending packet seq={packet.seq_num}")
-            self.socket.sendto(packet.to_json().encode(), self.peer_addr)
-
+        for attempt in range(max_retries):
             try:
-                self.socket.settimeout(1)
+                self.socket.sendto(packet.to_bytes(), self.peer_addr)
+                print(f"[Send] Sent packet (seq={packet.seq_num}), attempt {attempt+1}")
+
+                # Wait for ACK
                 ack_data, _ = self.socket.recvfrom(1024)
-                ack_pkt = Packet.from_json(ack_data.decode())
-                if ack_pkt.flags.get("ACK") and ack_pkt.ack_num == packet.seq_num + 1:
-                    print(f"[Send] ACK received for seq={packet.seq_num}")
+                ack_packet = Packet.from_bytes(ack_data)
+                
+                if ack_packet.flags["ACK"] and ack_packet.ack_num == packet.seq_num + 1:
                     self.seq += 1
-                    ack_received = True
-            except socket.timeout:
-                print("[Send] Timeout waiting for ACK, retransmitting..")
-    def recv(self) -> bytes:
+                    return True
+
+            except (socket.timeout, ValueError) as e:
+                print(f"[Send] Error: {str(e)}, retrying...")
+                continue
+
+        print("[Send] Max retries reached, giving up")
+        return False
+
+
+
+    # def recv(self) -> bytes:
+    #     try:
+    #         data, addr = self.socket.recvfrom(1024)
+    #         pkt = Packet.from_json(data.decode())
+    #         print(f"[Recv] Received packet seq={pkt.seq_num}")
+
+    #         # Send ACK
+    #         ack = Packet(
+    #             seq_num=self.seq,
+    #             ack_num=pkt.seq_num + 1,
+    #             flags={"SYN": False, "ACK": True, "FIN": False}
+    #         )
+    #         self.socket.sendto(ack.to_json().encode(), addr)
+    #         print(f"[Recv] Sent ACK for seq={pkt.seq_num}")
+
+    #         return pkt.payload
+    #     except socket.timeout:
+    #         print("[Recv] Timeout, no data received.")
+    #         return b''
+
+
+
+    def recv(self):
+        """Receive data with checksum verification"""
         try:
             data, addr = self.socket.recvfrom(1024)
-            pkt = Packet.from_json(data.decode())
-            print(f"[Recv] Received packet seq={pkt.seq_num}")
+            try:
+                packet = Packet.from_bytes(data)
+                print(f"[Recv] Received valid packet (seq={packet.seq_num})")
 
-            # Send ACK
-            ack = Packet(
-                seq_num=self.seq,
-                ack_num=pkt.seq_num + 1,
-                flags={"SYN": False, "ACK": True, "FIN": False}
-            )
-            self.socket.sendto(ack.to_json().encode(), addr)
-            print(f"[Recv] Sent ACK for seq={pkt.seq_num}")
+                # Send ACK
+                ack = Packet(
+                    seq_num=self.seq,
+                    ack_num=packet.seq_num + 1,
+                    flags={"ACK": True}
+                )
+                self.socket.sendto(ack.to_bytes(), addr)
+                
+                self.ack_num = packet.seq_num + 1
+                return packet.payload
 
-            return pkt.payload
+            except ValueError as e:
+                print(f"[Recv] Dropped corrupted packet: {str(e)}")
+                return None
         except socket.timeout:
-            print("[Recv] Timeout, no data received.")
-            return b''
+            print("[Recv] Timeout waiting for packet")
+            return None
+        except ConnectionResetError:
+            print("[Recv] Connection reset by peer")
+            return None
+        
+
 
     def close(self):
         print("[Connection] Closing socket.")

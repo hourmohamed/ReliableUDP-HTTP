@@ -7,7 +7,13 @@ def main():
 
         # Receive data
         data = server.recv()
-        print(f"[Server] Received data:\n{data.decode()}")
+        if data is not None:
+            try:
+                print(f"[Server] Received data:\n{data.decode()}")
+            except UnicodeDecodeError:
+                print("[Server] Received binary data (cannot decode as text)")
+        else:
+            print("[Server] No valid data received")
 
     server.close()
 

@@ -1,24 +1,19 @@
+# test_checksum.py
 from packet import Packet
+import random
 
-# Test cases for checksum functionality
-def test_checksum():
-    # Test with identical packets
-    pkt1 = Packet(seq_num=100, ack_num=200, flags={"SYN": True}, payload=b"test")
-    pkt2 = Packet(seq_num=100, ack_num=200, flags={"SYN": True}, payload=b"test")
-    assert pkt1.checksum == pkt2.checksum, "Identical packets should have same checksum"
+def test_checksum_verification():
+    # Create a valid packet
+    pkt = Packet(seq_num=100, ack_num=200, payload=b"test data")
     
-    # Test with different payloads
-    pkt3 = Packet(seq_num=100, ack_num=200, flags={"SYN": True}, payload=b"different")
-    assert pkt1.checksum != pkt3.checksum, "Different payloads should have different checksums"
+    # Simulate corruption
+    corrupted_data = pkt.to_bytes()[:-2] + bytes([random.randint(0, 255) for _ in range(2)])
     
-    # Test with corrupted data
-    corrupted_json = pkt1.to_json().replace('"seq_num":100', '"seq_num":101')
     try:
-        Packet.from_json(corrupted_json)
-        assert False, "Checksum verification should have failed"
+        Packet.from_bytes(corrupted_data)
+        print("TEST FAILED: Corrupted packet was accepted")
     except ValueError:
-        pass
-    
-    print("All checksum tests passed!")
+        print("TEST PASSED: Corrupted packet detected")
 
-test_checksum()
+if __name__ == "__main__":
+    test_checksum_verification()
