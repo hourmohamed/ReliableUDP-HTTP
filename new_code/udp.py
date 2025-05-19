@@ -2,6 +2,7 @@
 import socket
 import random
 import time
+from typing import Optional
 from packet import Packet
 
 TIMEOUT = 8

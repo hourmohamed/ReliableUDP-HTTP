@@ -5,15 +5,35 @@ def main():
     if server.hand_shake():
         print("[Server] Connection established")
         while True:
-            # Receive data
             data = server.recv()
             if data is not None:
                 try:
-                    print(f"[Server] Received data:\n{data.decode()}")
+                    request = data.decode()
+                    print(f"[Server] Received request:\n{request}")
+
+                    # Basic HTTP parsing
+                    if request.startswith("GET"):
+                        resource = request.split()[1]
+                        if resource == "/index.html":
+                            response = b"HTTP/1.0 200 OK\r\n\r\n<html><body><h1>Welcome</h1></body></html>"
+                        else:
+                            response = b"HTTP/1.0 404 Not Found\r\n\r\n<html><body><h1>404 Not Found</h1></body></html>"
+
+                    elif request.startswith("POST"):
+                        response = b"HTTP/1.0 200 OK\r\n\r\n<html><body><h1>POST received</h1></body></html>"
+
+                    else:
+                        response = b"HTTP/1.0 400 Bad Request\r\n\r\n"
+
+                    server.send(response)
+
                 except UnicodeDecodeError:
-                    print("[Server] Received binary data (cannot decode as text)")
+                    print("[Server] Binary data received (cannot decode)")
             else:
                 print("[Server] No valid data received")
+                break
+
+
 
     server.close()
 
