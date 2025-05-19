@@ -3,7 +3,7 @@ import socket
 import random
 from packet import Packet
 
-TIMEOUT = 3
+TIMEOUT = 5
 
 class TCP:
     def __init__(self, is_server=False, ip='127.0.0.1', port=12345):

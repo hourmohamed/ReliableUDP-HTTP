@@ -30,7 +30,7 @@ def main():
         else:
             print("[Client] Failed to send message after retries")
         
-        time.sleep(1)
+        # time.sleep(1)
 
 
     client.close()
