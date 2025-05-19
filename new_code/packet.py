@@ -135,3 +135,16 @@ class Packet:
         """Toggle corruption simulation"""
         self.corrupted = not self.corrupted
         return self
+    # simulate corruption by actually changing a random byte
+    # in the packet  
+    def corrupt_bytes(packet_bytes: bytes):
+        if not packet_bytes:
+            return packet_bytes
+        
+        corrupted_bytes = bytearray(packet_bytes)
+        byte_index = random.randint(0,len(corrupted_bytes)-1)
+        corrupted_bytes[byte_index] ^= 0xFF
+
+        return bytes(corrupted_bytes)
+
+

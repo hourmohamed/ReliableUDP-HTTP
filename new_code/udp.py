@@ -1,9 +1,10 @@
 # udp.py
 import socket
 import random
+import time
 from packet import Packet
 
-TIMEOUT = 5
+TIMEOUT = 8
 
 class TCP:
     def __init__(self, is_server=False, ip='127.0.0.1', port=12345):
@@ -105,34 +106,38 @@ class TCP:
 
 
 
-    def send(self, data, max_retries=3):
+    def send(self, data, max_retries=15):
         """Send data with checksum and retransmission on failure"""
-        packet = Packet(
+        original_packet = Packet(
             seq_num=self.seq,
             ack_num=self.ack_num,
             flags={"DATA": True},
             payload=data
         )
         
-        # Randomly simulate corruption based on corruption_rate
-        if random.random() < self.corruption_rate:
-            packet.simulate_corruption()
+       
 
         for attempt in range(max_retries):
+
+            packet_bytes = original_packet.to_bytes()
+             # Randomly simulate corruption based on corruption_rate
+            if random.random() < self.corruption_rate:
+                packet_bytes = Packet.corrupt_bytes(packet_bytes)
             try:
-                self.socket.sendto(packet.to_bytes(), self.peer_addr)
-                print(f"[Send] Sent packet (seq={packet.seq_num}), attempt {attempt+1}")
+                self.socket.sendto(packet_bytes, self.peer_addr)
+                print(f"[Send] Sent packet (seq={original_packet.seq_num}), attempt {attempt+1}")
 
                 # Wait for ACK
                 ack_data, _ = self.socket.recvfrom(1024)
                 ack_packet = Packet.from_bytes(ack_data)
                 
-                if ack_packet.flags["ACK"] and ack_packet.ack_num == packet.seq_num + 1:
+                if ack_packet.flags["ACK"] and ack_packet.ack_num == original_packet.seq_num + 1:
                     self.seq += 1
                     return True
 
             except (socket.timeout, ValueError) as e:
                 print(f"[Send] Error: {str(e)}, retrying...")
+                # time.sleep(0.2)
                 continue
 
         print("[Send] Max retries reached, giving up")
@@ -164,32 +169,33 @@ class TCP:
 
     def recv(self):
         """Receive data with checksum verification"""
-        try:
-            data, addr = self.socket.recvfrom(1024)
+        while True:
             try:
-                packet = Packet.from_bytes(data)
-                print(f"[Recv] Received valid packet (seq={packet.seq_num})")
+                data, addr = self.socket.recvfrom(1024)
+                try:
+                    packet = Packet.from_bytes(data)
+                    print(f"[Recv] Received valid packet (seq={packet.seq_num})")
 
-                # Send ACK
-                ack = Packet(
-                    seq_num=self.seq,
-                    ack_num=packet.seq_num + 1,
-                    flags={"ACK": True}
-                )
-                self.socket.sendto(ack.to_bytes(), addr)
-                
-                self.ack_num = packet.seq_num + 1
-                return packet.payload
+                    # Send ACK
+                    ack = Packet(
+                        seq_num=self.seq,
+                        ack_num=packet.seq_num + 1,
+                        flags={"ACK": True, }
+                    )
+                    self.socket.sendto(ack.to_bytes(), addr)
+                    
+                    self.ack_num = packet.seq_num + 1
+                    return packet.payload
 
-            except ValueError as e:
-                print(f"[Recv] Dropped corrupted packet: {str(e)}")
+                except ValueError as e:
+                    print(f"[Recv] Dropped corrupted packet: {str(e)}")
+                    continue
+            except socket.timeout:
+                print("[Recv] Timeout waiting for packet")
                 return None
-        except socket.timeout:
-            print("[Recv] Timeout waiting for packet")
-            return None
-        except ConnectionResetError:
-            print("[Recv] Connection reset by peer")
-            return None
+            except ConnectionResetError:
+                print("[Recv] Connection reset by peer")
+                return None
         
 
 
